@@ -31,8 +31,11 @@ export async function handleScrollToElement(driver: DriverInstance, args: Gestur
     }
 
     let scrollsDone = 0;
+    // The source captured after one scroll is the baseline for the next, so each
+    // scroll costs a single getPageSource call.
+    let xmlBefore: string | undefined;
     while (scrollsDone < maxScroll) {
-      const xmlBefore = await getPageSource(driver);
+      xmlBefore ??= await getPageSource(driver);
       try {
         await performVerticalScroll(driver, {direction, distance});
       } catch (scrollErr: unknown) {
@@ -50,6 +53,7 @@ export async function handleScrollToElement(driver: DriverInstance, args: Gestur
           `Element not found; page source did not change after scroll (likely end of scrollable content). selector=${args.selector}`,
         );
       }
+      xmlBefore = xmlAfter;
     }
 
     return errorResult(`Element ${args.selector} not found after ${maxScroll} scroll(s) in direction '${direction}'.`);

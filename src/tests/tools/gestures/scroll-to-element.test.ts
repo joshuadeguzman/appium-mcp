@@ -82,4 +82,46 @@ describe('handleScrollToElement', () => {
     expect(resultText(result)).toContain('already visible');
     expect(mockPerformVerticalScroll).not.toHaveBeenCalled();
   });
+
+  test('reuses the page source after each scroll as the next baseline', async () => {
+    let page = 0;
+    const remoteDriver = {
+      findElement: jest.fn(async () => NO_SUCH_ELEMENT),
+      getPageSource: jest.fn(async () => `<page-${page++}/>`),
+    };
+    mockPerformVerticalScroll.mockClear();
+
+    const result = await handleScrollToElement(remoteDriver as never, {
+      action: 'scroll_to_element',
+      strategy: 'accessibility id',
+      selector: 'missing',
+      maxScrollAttempts: 3,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(resultText(result)).toContain('not found after 3 scroll');
+    expect(mockPerformVerticalScroll).toHaveBeenCalledTimes(3);
+    expect(remoteDriver.getPageSource).toHaveBeenCalledTimes(4);
+  });
+
+  test('stops when the page source does not change after a scroll', async () => {
+    const pages = ['<top/>', '<bottom/>', '<bottom/>'];
+    const remoteDriver = {
+      findElement: jest.fn(async () => NO_SUCH_ELEMENT),
+      getPageSource: jest.fn(async () => pages.shift() ?? '<unexpected/>'),
+    };
+    mockPerformVerticalScroll.mockClear();
+
+    const result = await handleScrollToElement(remoteDriver as never, {
+      action: 'scroll_to_element',
+      strategy: 'accessibility id',
+      selector: 'missing',
+      maxScrollAttempts: 5,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(resultText(result)).toContain('page source did not change');
+    expect(mockPerformVerticalScroll).toHaveBeenCalledTimes(2);
+    expect(remoteDriver.getPageSource).toHaveBeenCalledTimes(3);
+  });
 });
